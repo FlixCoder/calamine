@@ -147,15 +147,15 @@ fn issue_9() {
     };
 
     let mut cell2 = calamine::RichText::new();
-    cell2.add_element(RichTextPart {
+    cell2.push(RichTextPart {
         text: "test2",
         format: Cow::Borrowed(&format1),
     });
-    cell2.add_element(RichTextPart {
+    cell2.push(RichTextPart {
         text: " o",
         format: Cow::Borrowed(&format2),
     });
-    cell2.add_element(RichTextPart {
+    cell2.push(RichTextPart {
         text: "ther",
         format: Cow::Borrowed(&format3),
     });
@@ -172,15 +172,15 @@ fn issue_9() {
     };
 
     let mut cell3 = calamine::RichText::new();
-    cell3.add_element(RichTextPart {
+    cell3.push(RichTextPart {
         text: "test3",
         format: Cow::Borrowed(&format4),
     });
-    cell3.add_element(RichTextPart {
+    cell3.push(RichTextPart {
         text: " ",
         format: Cow::Borrowed(&format2),
     });
-    cell3.add_element(RichTextPart {
+    cell3.push(RichTextPart {
         text: "aaa",
         format: Cow::Borrowed(&format5),
     });
@@ -504,11 +504,11 @@ fn rich_text_support() {
             let elements = rich_text.elements().collect::<Vec<_>>();
             assert_eq!(elements.len(), 3);
             assert_eq!(elements[0].text, "small ");
-            assert_eq!(elements[0].format.size, 8.0);
+            assert_eq!(elements[0].format.size, 8);
             assert_eq!(elements[1].text, "normal ");
-            assert_eq!(elements[1].format.size, 11.0);
+            assert_eq!(elements[1].format.size, 11);
             assert_eq!(elements[2].text, "big");
-            assert_eq!(elements[2].format.size, 14.0);
+            assert_eq!(elements[2].format.size, 14);
         } else {
             panic!("Cell was not parsed as RichText");
         }
