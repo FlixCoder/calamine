@@ -862,18 +862,25 @@ impl<RS: Read + Seek> Xlsx<RS> {
         if len < 100_000 {
             cells.reserve(len as usize);
         }
+        let mut dimensions = Dimensions {
+            start: (u32::MAX, u32::MAX),
+            end: (0, 0),
+        };
         loop {
             match cell_reader.next_cell() {
                 Ok(Some(Cell {
                     val: DataRef::Empty,
                     ..
                 })) => (),
-                Ok(Some(cell)) => cells.push(cell),
+                Ok(Some(cell)) => {
+                    dimensions.expand_to(cell.pos.0, cell.pos.1);
+                    cells.push(cell);
+                }
                 Ok(None) => break,
                 Err(e) => return Err(e),
             }
         }
-        Ok(Range::from_sparse(cells))
+        Ok(Range::from_sparse(cells, Some(dimensions)))
     }
 }
 
@@ -936,12 +943,17 @@ impl<RS: Read + Seek> Reader<RS> for Xlsx<RS> {
         if len < 100_000 {
             cells.reserve(len as usize);
         }
+        let mut dimensions = Dimensions {
+            start: (u32::MAX, u32::MAX),
+            end: (0, 0),
+        };
         while let Some(cell) = cell_reader.next_formula()? {
             if !cell.val.is_empty() {
+                dimensions.expand_to(cell.pos.0, cell.pos.1);
                 cells.push(cell);
             }
         }
-        Ok(Range::from_sparse(cells))
+        Ok(Range::from_sparse(cells, Some(dimensions)))
     }
 
     fn worksheets(&mut self) -> Vec<(String, Range<Data>)> {

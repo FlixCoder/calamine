@@ -21,7 +21,9 @@ use crate::datatype::DataRef;
 use crate::formats::{builtin_format_by_code, detect_custom_number_format, CellFormat};
 use crate::utils::{push_column, read_f64, read_i32, read_u16, read_u32, read_usize};
 use crate::vba::VbaProject;
-use crate::{Cell, Data, Metadata, Range, Reader, RichText, Sheet, SheetType, SheetVisible};
+use crate::{
+    Cell, Data, Dimensions, Metadata, Range, Reader, RichText, Sheet, SheetType, SheetVisible,
+};
 
 /// A Xlsb specific error
 #[derive(Debug)]
@@ -413,7 +415,7 @@ impl<RS: Read + Seek> Xlsb<RS> {
             let mut zfile = self.zip.by_index(i)?;
             let zname = zfile.name().to_owned();
             if zname.starts_with("xl/media") {
-                let name_ext: Vec<&str> = zname.split(".").collect();
+                let name_ext: Vec<&str> = zname.split('.').collect();
                 if let Some(ext) = name_ext.last() {
                     if [
                         "emf", "wmf", "pict", "jpeg", "jpg", "png", "dib", "gif", "tiff", "eps",
@@ -479,24 +481,34 @@ impl<RS: Read + Seek> Reader<RS> for Xlsb<RS> {
     fn worksheet_range(&mut self, name: &str) -> Result<Range<Data>, XlsbError> {
         let mut cells_reader = self.worksheet_cells_reader(name)?;
         let mut cells = Vec::with_capacity(cells_reader.dimensions().len().min(1_000_000) as _);
+        let mut dimensions = Dimensions {
+            start: (u32::MAX, u32::MAX),
+            end: (0, 0),
+        };
         while let Some(cell) = cells_reader.next_cell()? {
             if cell.val != DataRef::Empty {
+                dimensions.expand_to(cell.pos.0, cell.pos.1);
                 cells.push(Cell::new(cell.pos, Data::from(cell.val)));
             }
         }
-        Ok(Range::from_sparse(cells))
+        Ok(Range::from_sparse(cells, Some(dimensions)))
     }
 
     /// MS-XLSB 2.1.7.62
     fn worksheet_formula(&mut self, name: &str) -> Result<Range<String>, XlsbError> {
         let mut cells_reader = self.worksheet_cells_reader(name)?;
         let mut cells = Vec::with_capacity(cells_reader.dimensions().len().min(1_000_000) as _);
+        let mut dimensions = Dimensions {
+            start: (u32::MAX, u32::MAX),
+            end: (0, 0),
+        };
         while let Some(cell) = cells_reader.next_formula()? {
             if !cell.val.is_empty() {
+                dimensions.expand_to(cell.pos.0, cell.pos.1);
                 cells.push(cell);
             }
         }
-        Ok(Range::from_sparse(cells))
+        Ok(Range::from_sparse(cells, Some(dimensions)))
     }
 
     /// MS-XLSB 2.1.7.62

@@ -155,6 +155,13 @@ impl Dimensions {
     pub fn len(&self) -> u64 {
         (self.end.0 - self.start.0 + 1) as u64 * (self.end.1 - self.start.1 + 1) as u64
     }
+    /// Expand the dimensions such that the given position is in the dimensions.
+    fn expand_to(&mut self, row: u32, col: u32) {
+        self.start.0 = self.start.0.min(row);
+        self.start.1 = self.start.1.min(col);
+        self.end.0 = self.end.0.max(row);
+        self.end.1 = self.end.1.max(col);
+    }
 }
 
 /// Common file metadata
@@ -430,20 +437,25 @@ impl<T: CellType> Range<T> {
 
     /// Creates a `Range` from a coo sparse vector of `Cell`s.
     ///
-    /// Coordinate list (COO) is the natural way cells are stored
+    /// Coordinate list (COO) is the natural way cells are stored.
     /// Inner size is defined only by non empty.
     ///
-    /// cells: `Vec` of non empty `Cell`s, sorted by row
+    /// cells: `Vec` of non empty `Cell`s, sorted by row.
+    /// dimensions: `Dimensions` of the range, if already known.
     ///
     /// # Panics
     ///
-    /// panics when a `Cell` row is lower than the first `Cell` row or
+    /// Panics when a `Cell` row is lower than the first `Cell` row or
     /// bigger than the last `Cell` row.
-    pub fn from_sparse(cells: Vec<Cell<T>>) -> Range<T> {
+    /// Also panics if cells is empty.
+    /// Might also panic if the given dimensions are wrong.
+    pub fn from_sparse(cells: Vec<Cell<T>>, dimensions: Option<Dimensions>) -> Range<T> {
         if cells.is_empty() {
-            Range::empty()
-        } else {
-            // search bounds
+            return Range::empty();
+        }
+
+        // search bounds
+        let dimensions = dimensions.unwrap_or_else(|| {
             let row_start = cells.first().unwrap().pos.0;
             let row_end = cells.last().unwrap().pos.0;
             let mut col_start = std::u32::MAX;
@@ -456,22 +468,30 @@ impl<T: CellType> Range<T> {
                     col_end = c
                 }
             }
-            let cols = (col_end - col_start + 1) as usize;
-            let rows = (row_end - row_start + 1) as usize;
-            let len = cols.saturating_mul(rows);
-            let mut v = vec![T::default(); len];
-            v.shrink_to_fit();
-            for c in cells {
-                let row = (c.pos.0 - row_start) as usize;
-                let col = (c.pos.1 - col_start) as usize;
-                let idx = row.saturating_mul(cols) + col;
-                v.get_mut(idx).map(|v| *v = c.val);
-            }
-            Range {
+            Dimensions {
                 start: (row_start, col_start),
                 end: (row_end, col_end),
-                inner: v,
             }
+        });
+
+        let cols = (dimensions.end.1 - dimensions.start.1 + 1) as usize;
+        let rows = (dimensions.end.0 - dimensions.start.0 + 1) as usize;
+        let len = cols.saturating_mul(rows);
+
+        let mut v = vec![T::default(); len];
+        v.shrink_to_fit();
+        for c in cells {
+            let row = (c.pos.0 - dimensions.start.0) as usize;
+            let col = (c.pos.1 - dimensions.start.1) as usize;
+            let idx = row.saturating_mul(cols) + col;
+            if let Some(v) = v.get_mut(idx) {
+                *v = c.val;
+            }
+        }
+        Range {
+            start: dimensions.start,
+            end: dimensions.end,
+            inner: v,
         }
     }
 

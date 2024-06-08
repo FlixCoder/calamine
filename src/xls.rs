@@ -410,32 +410,74 @@ impl<RS: Read + Seek> Xls<RS> {
             let mut formulas = Vec::new();
             let mut fmla_pos = (0, 0);
             let mut merge_cells = Vec::new();
+            let mut dimensions = Dimensions {
+                start: (u32::MAX, u32::MAX),
+                end: (0, 0),
+            };
             for record in records {
                 let r = record?;
                 match r.typ {
                     // 512: Dimensions
                     0x0200 => {
                         let Dimensions { start, end } = parse_dimensions(r.data)?;
+                        dimensions.expand_to(start.0, start.1);
+                        dimensions.expand_to(end.0, end.1);
                         let rows = (end.0 - start.0 + 1) as usize;
                         let cols = (end.1 - start.1 + 1) as usize;
                         cells.reserve(rows.saturating_mul(cols));
                     }
                     //0x0201 => cells.push(parse_blank(r.data)?), // 513: Blank
-                    0x0203 => cells.push(parse_number(r.data, &self.formats, self.is_1904)?), // 515: Number
-                    0x0204 => cells.extend(parse_label(r.data, &encoding, biff)?), // 516: Label [MS-XLS 2.4.148]
-                    0x0205 => cells.push(parse_bool_err(r.data)?),                 // 517: BoolErr
+                    // 515: Number
+                    0x0203 => {
+                        let cell = parse_number(r.data, &self.formats, self.is_1904)?;
+                        dimensions.expand_to(cell.pos.0, cell.pos.1);
+                        cells.push(cell);
+                    }
+                    // 516: Label [MS-XLS 2.4.148]
+                    0x0204 => {
+                        if let Some(cell) = parse_label(r.data, &encoding, biff)? {
+                            dimensions.expand_to(cell.pos.0, cell.pos.1);
+                            cells.push(cell);
+                        }
+                    }
+                    // 517: BoolErr
+                    0x0205 => {
+                        let cell = parse_bool_err(r.data)?;
+                        dimensions.expand_to(cell.pos.0, cell.pos.1);
+                        cells.push(cell);
+                    }
+                    // 519 String (formula value)
                     0x0207 => {
-                        // 519 String (formula value)
                         let val = Data::String(parse_string(r.data, &encoding, biff)?);
                         cells.push(Cell::new(fmla_pos, val))
                     }
-                    0x027E => cells.push(parse_rk(r.data, &self.formats, self.is_1904)?), // 638: Rk
-                    0x00FD => cells.extend(parse_label_sst(r.data, &strings)?), // LabelSst
-                    0x00BD => parse_mul_rk(r.data, &mut cells, &self.formats, self.is_1904)?, // 189: MulRk
-                    0x00E5 => parse_merge_cells(r.data, &mut merge_cells)?, // 229: Merge Cells
-                    0x000A => break,                                        // 10: EOF,
+                    // 638: Rk
+                    0x027E => {
+                        let cell = parse_rk(r.data, &self.formats, self.is_1904)?;
+                        dimensions.expand_to(cell.pos.0, cell.pos.1);
+                        cells.push(cell);
+                    }
+                    // LabelSst
+                    0x00FD => {
+                        if let Some(cell) = parse_label_sst(r.data, &strings)? {
+                            dimensions.expand_to(cell.pos.0, cell.pos.1);
+                            cells.push(cell);
+                        }
+                    }
+                    // 189: MulRk
+                    0x00BD => parse_mul_rk(
+                        r.data,
+                        &mut cells,
+                        &mut dimensions,
+                        &self.formats,
+                        self.is_1904,
+                    )?,
+                    // 229: Merge Cells
+                    0x00E5 => parse_merge_cells(r.data, &mut merge_cells)?,
+                    // 10: EOF,
+                    0x000A => break,
+                    // 6: Formula
                     0x0006 => {
-                        // 6: Formula
                         if r.data.len() < 20 {
                             return Err(XlsError::Len {
                                 expected: 20,
@@ -446,6 +488,7 @@ impl<RS: Read + Seek> Xls<RS> {
                         let row = read_u16(r.data);
                         let col = read_u16(&r.data[2..]);
                         fmla_pos = (row as u32, col as u32);
+                        dimensions.expand_to(fmla_pos.0, fmla_pos.1);
                         if let Some(val) = parse_formula_value(&r.data[6..14])? {
                             // If the value is a string
                             // it will appear in 0x0207 record coming next
@@ -471,8 +514,8 @@ impl<RS: Read + Seek> Xls<RS> {
                     _ => (),
                 }
             }
-            let range = Range::from_sparse(cells);
-            let formula = Range::from_sparse(formulas);
+            let range = Range::from_sparse(cells, Some(dimensions));
+            let formula = Range::from_sparse(formulas, Some(dimensions));
             sheets.insert(
                 name,
                 SheetData {
@@ -680,6 +723,7 @@ fn parse_merge_cells(r: &[u8], merge_cells: &mut Vec<Dimensions>) -> Result<(), 
 fn parse_mul_rk(
     r: &[u8],
     cells: &mut Vec<Cell<Data>>,
+    dimensions: &mut Dimensions,
     formats: &[CellFormat],
     is_1904: bool,
 ) -> Result<(), XlsError> {
@@ -691,7 +735,7 @@ fn parse_mul_rk(
         });
     }
 
-    let row = read_u16(r);
+    let row = read_u16(r) as u32;
     let col_first = read_u16(&r[2..]);
     let col_last = read_u16(&r[r.len() - 2..]);
 
@@ -706,7 +750,8 @@ fn parse_mul_rk(
     let mut col = col_first as u32;
 
     for rk in r[4..r.len() - 2].chunks(6) {
-        cells.push(Cell::new((row as u32, col), rk_num(rk, formats, is_1904)));
+        dimensions.expand_to(row, col);
+        cells.push(Cell::new((row, col), rk_num(rk, formats, is_1904)));
         col += 1;
     }
     Ok(())
