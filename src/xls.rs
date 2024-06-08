@@ -241,30 +241,32 @@ impl<RS: Read + Seek> Reader<RS> for Xls<RS> {
         &self.metadata
     }
 
-    fn worksheet_range(&mut self, name: &str) -> Result<Range<Data>, XlsError> {
+    fn worksheet_range(&mut self, name: &str) -> Result<Cow<'_, Range<Data>>, XlsError> {
         self.sheets
             .get(name)
-            .map(|r| r.range.clone())
+            .map(|r| Cow::Borrowed(&r.range))
             .ok_or_else(|| XlsError::WorksheetNotFound(name.into()))
     }
 
-    fn worksheets(&mut self) -> Vec<(String, Range<Data>)> {
+    fn worksheets(&mut self) -> Vec<(String, Cow<'_, Range<Data>>)> {
         self.sheets
             .iter()
-            .map(|(name, sheet)| (name.to_owned(), sheet.range.clone()))
+            .map(|(name, sheet)| (name.to_owned(), Cow::Borrowed(&sheet.range)))
             .collect()
     }
 
-    fn worksheet_formula(&mut self, name: &str) -> Result<Range<String>, XlsError> {
+    fn worksheet_formula(&mut self, name: &str) -> Result<Cow<'_, Range<String>>, XlsError> {
         self.sheets
             .get(name)
             .ok_or_else(|| XlsError::WorksheetNotFound(name.into()))
-            .map(|r| r.formula.clone())
+            .map(|r| Cow::Borrowed(&r.formula))
     }
 
     #[cfg(feature = "picture")]
-    fn pictures(&self) -> Option<Vec<(String, Vec<u8>)>> {
-        self.pictures.to_owned()
+    fn pictures(&self) -> Option<Cow<'_, Vec<(String, Vec<u8>)>>> {
+        self.pictures
+            .as_ref()
+            .map(|pictures| Cow::Borrowed(pictures))
     }
 }
 

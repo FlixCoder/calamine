@@ -105,7 +105,7 @@ where
     }
 
     /// Read worksheet data in corresponding worksheet path
-    fn worksheet_range(&mut self, name: &str) -> Result<Range<Data>, Self::Error> {
+    fn worksheet_range(&mut self, name: &str) -> Result<Cow<'_, Range<Data>>, Self::Error> {
         match *self {
             Sheets::Xls(ref mut e) => e.worksheet_range(name).map_err(Error::Xls),
             Sheets::Xlsx(ref mut e) => e.worksheet_range(name).map_err(Error::Xlsx),
@@ -115,7 +115,7 @@ where
     }
 
     /// Read worksheet formula in corresponding worksheet path
-    fn worksheet_formula(&mut self, name: &str) -> Result<Range<String>, Self::Error> {
+    fn worksheet_formula(&mut self, name: &str) -> Result<Cow<'_, Range<String>>, Self::Error> {
         match *self {
             Sheets::Xls(ref mut e) => e.worksheet_formula(name).map_err(Error::Xls),
             Sheets::Xlsx(ref mut e) => e.worksheet_formula(name).map_err(Error::Xlsx),
@@ -124,7 +124,7 @@ where
         }
     }
 
-    fn worksheets(&mut self) -> Vec<(String, Range<Data>)> {
+    fn worksheets(&mut self) -> Vec<(String, Cow<'_, Range<Data>>)> {
         match *self {
             Sheets::Xls(ref mut e) => e.worksheets(),
             Sheets::Xlsx(ref mut e) => e.worksheets(),
@@ -134,7 +134,7 @@ where
     }
 
     #[cfg(feature = "picture")]
-    fn pictures(&self) -> Option<Vec<(String, Vec<u8>)>> {
+    fn pictures(&self) -> Option<Cow<'_, Vec<(String, Vec<u8>)>>> {
         match *self {
             Sheets::Xls(ref e) => e.pictures(),
             Sheets::Xlsx(ref e) => e.pictures(),

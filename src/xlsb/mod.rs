@@ -478,7 +478,7 @@ impl<RS: Read + Seek> Reader<RS> for Xlsb<RS> {
     }
 
     /// MS-XLSB 2.1.7.62
-    fn worksheet_range(&mut self, name: &str) -> Result<Range<Data>, XlsbError> {
+    fn worksheet_range(&mut self, name: &str) -> Result<Cow<'_, Range<Data>>, XlsbError> {
         let mut cells_reader = self.worksheet_cells_reader(name)?;
         let mut cells = Vec::with_capacity(cells_reader.dimensions().len().min(1_000_000) as _);
         let mut dimensions = Dimensions {
@@ -491,11 +491,11 @@ impl<RS: Read + Seek> Reader<RS> for Xlsb<RS> {
                 cells.push(Cell::new(cell.pos, Data::from(cell.val)));
             }
         }
-        Ok(Range::from_sparse(cells, Some(dimensions)))
+        Ok(Cow::Owned(Range::from_sparse(cells, Some(dimensions))))
     }
 
     /// MS-XLSB 2.1.7.62
-    fn worksheet_formula(&mut self, name: &str) -> Result<Range<String>, XlsbError> {
+    fn worksheet_formula(&mut self, name: &str) -> Result<Cow<'_, Range<String>>, XlsbError> {
         let mut cells_reader = self.worksheet_cells_reader(name)?;
         let mut cells = Vec::with_capacity(cells_reader.dimensions().len().min(1_000_000) as _);
         let mut dimensions = Dimensions {
@@ -508,11 +508,11 @@ impl<RS: Read + Seek> Reader<RS> for Xlsb<RS> {
                 cells.push(cell);
             }
         }
-        Ok(Range::from_sparse(cells, Some(dimensions)))
+        Ok(Cow::Owned(Range::from_sparse(cells, Some(dimensions))))
     }
 
     /// MS-XLSB 2.1.7.62
-    fn worksheets(&mut self) -> Vec<(String, Range<Data>)> {
+    fn worksheets(&mut self) -> Vec<(String, Cow<'_, Range<Data>>)> {
         let sheets = self
             .sheets
             .iter()
@@ -521,15 +521,15 @@ impl<RS: Read + Seek> Reader<RS> for Xlsb<RS> {
         sheets
             .into_iter()
             .filter_map(|name| {
-                let ws = self.worksheet_range(&name).ok()?;
-                Some((name, ws))
+                let ws = self.worksheet_range(&name).ok()?.into_owned();
+                Some((name, Cow::Owned(ws)))
             })
             .collect()
     }
 
     #[cfg(feature = "picture")]
-    fn pictures(&self) -> Option<Vec<(String, Vec<u8>)>> {
-        self.pictures.to_owned()
+    fn pictures(&self) -> Option<Cow<'_, Vec<(String, Vec<u8>)>>> {
+        self.pictures.as_ref().map(Cow::Borrowed)
     }
 }
 

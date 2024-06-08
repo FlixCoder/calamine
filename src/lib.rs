@@ -142,6 +142,7 @@ pub struct Dimensions {
     pub end: (u32, u32),
 }
 
+#[allow(clippy::len_without_is_empty)]
 impl Dimensions {
     /// create dimensions info with start position and end position
     pub fn new(start: (u32, u32), end: (u32, u32)) -> Self {
@@ -243,13 +244,13 @@ where
     fn metadata(&self) -> &Metadata;
 
     /// Read worksheet data in corresponding worksheet path
-    fn worksheet_range(&mut self, name: &str) -> Result<Range<Data>, Self::Error>;
+    fn worksheet_range(&mut self, name: &str) -> Result<Cow<'_, Range<Data>>, Self::Error>;
 
     /// Fetch all worksheet data & paths
-    fn worksheets(&mut self) -> Vec<(String, Range<Data>)>;
+    fn worksheets(&mut self) -> Vec<(String, Cow<'_, Range<Data>>)>;
 
     /// Read worksheet formula in corresponding worksheet path
-    fn worksheet_formula(&mut self, _: &str) -> Result<Range<String>, Self::Error>;
+    fn worksheet_formula(&mut self, _: &str) -> Result<Cow<'_, Range<String>>, Self::Error>;
 
     /// Get all sheet names of this workbook, in workbook order
     ///
@@ -281,14 +282,17 @@ where
 
     /// Get the nth worksheet. Shortcut for getting the nth
     /// sheet_name, then the corresponding worksheet.
-    fn worksheet_range_at(&mut self, n: usize) -> Option<Result<Range<Data>, Self::Error>> {
+    fn worksheet_range_at(
+        &mut self,
+        n: usize,
+    ) -> Option<Result<Cow<'_, Range<Data>>, Self::Error>> {
         let name = self.sheet_names().get(n)?.to_string();
         Some(self.worksheet_range(&name))
     }
 
     /// Get all pictures, tuple as (ext: String, data: Vec<u8>)
     #[cfg(feature = "picture")]
-    fn pictures(&self) -> Option<Vec<(String, Vec<u8>)>>;
+    fn pictures(&self) -> Option<Cow<'_, Vec<(String, Vec<u8>)>>>;
 }
 
 /// Convenient function to open a file with a BufReader<File>

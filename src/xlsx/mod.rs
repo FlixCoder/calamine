@@ -926,17 +926,17 @@ impl<RS: Read + Seek> Reader<RS> for Xlsx<RS> {
         &self.metadata
     }
 
-    fn worksheet_range(&mut self, name: &str) -> Result<Range<Data>, XlsxError> {
+    fn worksheet_range(&mut self, name: &str) -> Result<Cow<'_, Range<Data>>, XlsxError> {
         let rge = self.worksheet_range_ref(name)?;
         let inner = rge.inner.into_iter().map(|v| v.into()).collect();
-        Ok(Range {
+        Ok(Cow::Owned(Range {
             start: rge.start,
             end: rge.end,
             inner,
-        })
+        }))
     }
 
-    fn worksheet_formula(&mut self, name: &str) -> Result<Range<String>, XlsxError> {
+    fn worksheet_formula(&mut self, name: &str) -> Result<Cow<'_, Range<String>>, XlsxError> {
         let mut cell_reader = self.worksheet_cells_reader(name)?;
         let len = cell_reader.dimensions().len();
         let mut cells = Vec::new();
@@ -953,10 +953,10 @@ impl<RS: Read + Seek> Reader<RS> for Xlsx<RS> {
                 cells.push(cell);
             }
         }
-        Ok(Range::from_sparse(cells, Some(dimensions)))
+        Ok(Cow::Owned(Range::from_sparse(cells, Some(dimensions))))
     }
 
-    fn worksheets(&mut self) -> Vec<(String, Range<Data>)> {
+    fn worksheets(&mut self) -> Vec<(String, Cow<'_, Range<Data>>)> {
         let names = self
             .sheets
             .iter()
@@ -965,15 +965,15 @@ impl<RS: Read + Seek> Reader<RS> for Xlsx<RS> {
         names
             .into_iter()
             .filter_map(|n| {
-                let rge = self.worksheet_range(&n).ok()?;
-                Some((n, rge))
+                let rge = self.worksheet_range(&n).ok()?.into_owned();
+                Some((n, Cow::Owned(rge)))
             })
             .collect()
     }
 
     #[cfg(feature = "picture")]
-    fn pictures(&self) -> Option<Vec<(String, Vec<u8>)>> {
-        self.pictures.to_owned()
+    fn pictures(&self) -> Option<Cow<'_, Vec<(String, Vec<u8>)>>> {
+        self.pictures.as_ref().map(Cow::Borrowed)
     }
 }
 

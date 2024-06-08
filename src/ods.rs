@@ -175,31 +175,31 @@ where
     }
 
     /// Read worksheet data in corresponding worksheet path
-    fn worksheet_range(&mut self, name: &str) -> Result<Range<Data>, OdsError> {
+    fn worksheet_range(&mut self, name: &str) -> Result<Cow<'_, Range<Data>>, OdsError> {
         self.sheets
             .get(name)
             .ok_or_else(|| OdsError::WorksheetNotFound(name.into()))
-            .map(|r| r.0.to_owned())
+            .map(|r| Cow::Borrowed(&r.0))
     }
 
-    fn worksheets(&mut self) -> Vec<(String, Range<Data>)> {
+    fn worksheets(&mut self) -> Vec<(String, Cow<'_, Range<Data>>)> {
         self.sheets
             .iter()
-            .map(|(name, (range, _formula))| (name.to_owned(), range.clone()))
+            .map(|(name, (range, _formula))| (name.to_owned(), Cow::Borrowed(range)))
             .collect()
     }
 
     /// Read worksheet data in corresponding worksheet path
-    fn worksheet_formula(&mut self, name: &str) -> Result<Range<String>, OdsError> {
+    fn worksheet_formula(&mut self, name: &str) -> Result<Cow<'_, Range<String>>, OdsError> {
         self.sheets
             .get(name)
             .ok_or_else(|| OdsError::WorksheetNotFound(name.into()))
-            .map(|r| r.1.to_owned())
+            .map(|r| Cow::Borrowed(&r.1))
     }
 
     #[cfg(feature = "picture")]
-    fn pictures(&self) -> Option<Vec<(String, Vec<u8>)>> {
-        self.pictures.to_owned()
+    fn pictures(&self) -> Option<Cow<'_, Vec<(String, Vec<u8>)>>> {
+        self.pictures.as_ref().map(Cow::Borrowed)
     }
 }
 
