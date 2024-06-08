@@ -2,10 +2,32 @@
 
 extern crate test;
 
-use calamine::{open_workbook, Ods, Reader, Xls, Xlsb, Xlsx};
+use calamine::{open_workbook, open_workbook_auto, Ods, Reader, Xls, Xlsb, Xlsx};
 use std::fs::File;
 use std::io::BufReader;
 use test::Bencher;
+
+fn read_big(path: &str) -> usize {
+    let path = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), path);
+    let mut excel = open_workbook_auto(path).expect("cannot open excel file");
+
+    let sheets = excel.sheet_names();
+    let mut count = 0;
+    for sheet in sheets {
+        count += excel
+            .worksheet_range(&sheet)
+            .unwrap()
+            .rows()
+            .flat_map(|row| row.iter())
+            .count();
+    }
+    count
+}
+
+#[bench]
+fn bench_big_xls(b: &mut Bencher) {
+    b.iter(|| read_big("tests/adhocallbabynames1996to2016.xls"));
+}
 
 fn count<R: Reader<BufReader<File>>>(path: &str) -> usize {
     let path = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), path);
